@@ -11,17 +11,14 @@ var CleanCSS = require('clean-css');
 var oust = require('oust');
 var inliner = require('./inline-styles');
 var sourceInliner = require('inline-critical');
-var imageInliner = require('imageinliner');
 var Promise = require("bluebird");
 var os = require('os');
-var crypto = require('crypto');
+var uuid = require('uuid');
 
 
-// promisify fs
+// promisify fs and penthouse
 Promise.promisifyAll(fs);
-
 var penthouseAsync = Promise.promisify(penthouse);
-
 
 
 /**
@@ -31,8 +28,7 @@ var penthouseAsync = Promise.promisify(penthouse);
  * @accepts src, base, width, height, dest
  */
 exports.generate = function (opts, cb) {
-    var seed = crypto.randomBytes(20);
-    var TMPCSS = crypto.createHash('md5').update(seed).digest('hex');
+    var TMPCSS = '.' + uuid.v4();
     opts = opts || {};
     cb = cb || function () {};
 
@@ -68,22 +64,8 @@ exports.generate = function (opts, cb) {
     // read files
     }).map(function(fileName){
         return fs.readFileAsync(fileName, "utf8").then(function(content) {
-            // get path to css file
-            var dir = path.dirname(fileName);
-            var inlined = imageInliner.css(content.toString(), { maxImageFileSize: 10240, cssBasePath: dir, rootImagePath:  opts.base });
-
-            // normalize relative paths
-            return inlined.toString().replace(/url\(['"]?([^'"\)]+)['"]?\)/g, function (match, filePath) {
-                // do nothing for absolute paths, urls and data-uris
-                if (/^data\:/.test(filePath) || /(?:^\/)|(?:\:\/\/)/.test(filePath)) {
-                    return match;
-                }
-                // create path relative to opts.base
-                var relativeToBase = path.relative(path.resolve(opts.base), path.resolve(path.join(dir, filePath)));
-
-                // prepend / to make it absolute
-                return match.replace(filePath, path.join('/', relativeToBase));
-            });
+            // the code below actually breaks
+            return content;
         });
 
     // combine all css files to one bid stylesheet
@@ -93,7 +75,6 @@ exports.generate = function (opts, cb) {
     // write contents to tmp file
     }, '').then(function (css) {
         return fs.writeFileAsync(TMPCSS, css);
-
 
     // let penthouseAsync do the rest
     }).then(function () {
